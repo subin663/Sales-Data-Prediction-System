@@ -80,7 +80,7 @@ if st.runtime.exists():
     df_evals = load_evaluations()
 
     if df_evals.empty:
-        st.warning("Hiện tại chưa có dữ liệu đánh giá trong SQL Server. Vui lòng chạy tác vụ huấn luyện lại bên dưới!")
+        st.warning("Hiện tại chưa có dữ liệu đánh giá trong tệp CSV. Vui lòng chạy tác vụ huấn luyện lại bên dưới!")
     else:
         # HIỂN THỊ BẢNG XẾP HẠNG PHÁT SÁNG PREMIUM
         st.markdown("<h3 style='color: #F8FAFC; font-size: 1.25rem; margin-bottom: 20px;'>⭐ BẢNG XẾP HẠNG HIỆU NĂNG MÔ HÌNH (SẮP XẾP THEO MAE TĂNG DẦN)</h3>", unsafe_allow_html=True)

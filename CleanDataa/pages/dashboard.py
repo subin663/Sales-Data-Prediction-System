@@ -42,13 +42,11 @@ if st.runtime.exists():
 
     # BỘ CHỌN CHU KỲ PHÂN TÍCH ĐỘNG (Dynamic Aggregation Selector)
     st.markdown("<h3 style='color: #F8FAFC; font-size: 1.1rem; margin-bottom: 15px;'>📆 LỰA CHỌN CHU KỲ HIỂN THỊ (TIME AGGREGATION SELECTOR)</h3>", unsafe_allow_html=True)
-    col_ag1, col_ag2 = st.columns([1.2, 1.8])
-    with col_ag1:
-        time_unit = st.selectbox(
-            "Chu kỳ phân tích dữ liệu",
-            options=["Hàng Ngày (Daily)", "Hàng Tuần (Weekly)", "Hàng Tháng (Monthly)", "Hàng Năm (Yearly)"],
-            index=1 # Mặc định là Hàng Tuần
-        )
+    time_unit = st.selectbox(
+        "Chu kỳ phân tích dữ liệu",
+        options=["Hàng Ngày (Daily)", "Hàng Tuần (Weekly)", "Hàng Tháng (Monthly)", "Hàng Năm (Yearly)"],
+        index=1 # Mặc định là Hàng Tuần
+    )
 
     # Map sang Pandas Resample Rules
     rule_map = {
@@ -98,19 +96,6 @@ if st.runtime.exists():
     else:
         plot_data = pd.DataFrame(columns=['sale_date', 'revenue'])
 
-    with col_ag2:
-        if not plot_data.empty:
-            max_window = min(30, max(2, len(plot_data)))
-            default_val = min(4 if "Ngày" not in time_unit else 7, max_window)
-            window = st.slider(
-                f"Độ rộng khung {unit_label} cho Đường trung bình trượt (Rolling Mean)",
-                min_value=2,
-                max_value=max_window,
-                value=default_val
-            )
-        else:
-            window = 4
-
     st.markdown("<br/>", unsafe_allow_html=True)
 
 # --- HIỂN THỊ KPIs & BIỂU ĐỒ TRỰC QUAN REAL-TIME SỬ DỤNG STREAMLIT FRAGMENT ---
@@ -141,7 +126,7 @@ def render_realtime_section():
         p_data = pd.DataFrame(columns=['sale_date', 'revenue'])
 
     # Hiển thị các thẻ KPI bằng Glassmorphism
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     if not p_data.empty:
         total_rev = p_data['revenue'].sum()
@@ -157,25 +142,36 @@ def render_realtime_section():
         peak_date = "N/A"
         peak_val = 0
         
+    total_profit = total_rev * 0.4
+
     with col1:
         st.markdown(f"""
             <div class="glass-card">
-                <div class="glass-card-title">Tổng Doanh Thu Lũy Kế</div>
+                <div class="glass-card-title">Tổng Doanh Thu</div>
                 <div class="glass-card-value">${total_rev:,.0f}</div>
-                <div class="glass-card-desc">Cộng dồn tất cả dữ liệu theo bộ lọc</div>
+                <div class="glass-card-desc">Cộng dồn doanh số bán hàng</div>
             </div>
         """, unsafe_allow_html=True)
         
     with col2:
         st.markdown(f"""
             <div class="glass-card">
-                <div class="glass-card-title">Tổng Đơn Hàng Thành Công</div>
+                <div class="glass-card-title">Lợi Nhuận Ước Tính</div>
+                <div class="glass-card-value" style="color: #10B981;">${total_profit:,.0f}</div>
+                <div class="glass-card-desc">Giá vốn định mức (60% Doanh thu)</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col3:
+        st.markdown(f"""
+            <div class="glass-card">
+                <div class="glass-card-title">Tổng Đơn Hàng</div>
                 <div class="glass-card-value" style="color: #A78BFA;">{total_orders:,}</div>
                 <div class="glass-card-desc">Số lượng giao dịch thực tế</div>
             </div>
         """, unsafe_allow_html=True)
         
-    with col3:
+    with col4:
         st.markdown(f"""
             <div class="glass-card">
                 <div class="glass-card-title">{avg_title}</div>
@@ -184,52 +180,69 @@ def render_realtime_section():
             </div>
         """, unsafe_allow_html=True)
         
-    with col4:
+    with col5:
         st.markdown(f"""
             <div class="glass-card">
-                <div class="glass-card-title">{peak_title}</div>
-                <div class="glass-card-value" style="color: #FBBF24;">{peak_date}</div>
-                <div class="glass-card-desc">Giá trị đỉnh: ${peak_val:,.0f}</div>
+                <div class="glass-card-title">Doanh Thu Đỉnh / {unit_label.capitalize()}</div>
+                <div class="glass-card-value" style="color: #FBBF24;">${peak_val:,.0f}</div>
+                <div class="glass-card-desc">Thời gian: {peak_date}</div>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br/>---<br/>", unsafe_allow_html=True)
 
-    # Đồ thị doanh thu & rolling mean tương tác
+    # Đồ thị tương quan Doanh thu - Chi phí - Lợi nhuận
     if not p_data.empty:
-        st.subheader(f"📊 Đồ thị biến động doanh thu & Đường xu hướng trung bình trượt ({time_unit.split(' (')[0]})")
+        st.subheader(f"📈 Phân tích tương quan Doanh Thu - Chi Phí - Lợi Nhuận ({time_unit.split(' (')[0]})")
         
-        p_data['rolling'] = p_data['revenue'].rolling(window=window, min_periods=1).mean()
+        # Tính toán Cost và Profit
+        p_data['cost'] = p_data['revenue'] * 0.6
+        p_data['profit'] = p_data['revenue'] * 0.4
         
-        # Vẽ biểu đồ tối ưu thẩm mỹ
-        fig, ax = plt.subplots(figsize=(14, 5.2), facecolor='#0F172A')
-        ax.set_facecolor('#0F172A')
-        ax.plot(p_data['sale_date'], p_data['revenue'], color='#475569', linewidth=1.1, linestyle='--', marker='o', markersize=3, alpha=0.6, label=f'Doanh thu thực tế ({unit_label})')
-        ax.plot(p_data['sale_date'], p_data['rolling'], color='#38BDF8', linewidth=2.5, marker='o', markersize=4, label=f'Đường xu hướng Rolling Mean ({window} {unit_label})')
-        ax.fill_between(p_data['sale_date'], p_data['rolling'], color='#38BDF8', alpha=0.1)
+        fig_p, ax_p = plt.subplots(figsize=(14, 5.2), facecolor='#0F172A')
+        ax_p.set_facecolor('#0F172A')
         
-        ax.set_xlabel('Thời gian', color='#94A3B8', fontsize=10, labelpad=8)
-        ax.set_ylabel('Doanh thu ($)', color='#94A3B8', fontsize=10, labelpad=8)
-        ax.tick_params(colors='#94A3B8', labelsize=9)
-        ax.grid(True, linestyle='--', color='#1E293B', alpha=0.6)
-        ax.legend(facecolor='#1E293B', edgecolor='#334155', fontsize=9.5)
+        # Vẽ các đường
+        ax_p.plot(p_data['sale_date'], p_data['revenue'], color='#38BDF8', linewidth=2.2, marker='o', markersize=3, label='Doanh thu (Sales)')
+        ax_p.plot(p_data['sale_date'], p_data['cost'], color='#F43F5E', linewidth=1.8, linestyle=':', marker='s', markersize=3, alpha=0.8, label='Giá vốn (Cost - 60%)')
+        ax_p.plot(p_data['sale_date'], p_data['profit'], color='#10B981', linewidth=2.2, marker='^', markersize=4, label='Lợi nhuận (Profit - 40%)')
+        
+        # Fill area for profit to make it look premium
+        ax_p.fill_between(p_data['sale_date'], p_data['profit'], color='#10B981', alpha=0.1)
+        
+        ax_p.set_xlabel('Thời gian', color='#94A3B8', fontsize=10, labelpad=8)
+        ax_p.set_ylabel('Giá trị ($)', color='#94A3B8', fontsize=10, labelpad=8)
+        ax_p.tick_params(colors='#94A3B8', labelsize=9)
+        ax_p.grid(True, linestyle='--', color='#1E293B', alpha=0.6)
+        ax_p.legend(facecolor='#1E293B', edgecolor='#334155', fontsize=9.5)
         
         for spine in ['top', 'right', 'left', 'bottom']:
-            ax.spines[spine].set_visible(False)
+            ax_p.spines[spine].set_visible(False)
             
-        ax.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}$".format(int(x))))
-        st.pyplot(fig)
+        ax_p.get_yaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}$".format(int(x))))
+        st.pyplot(fig_p)
         
         st.markdown("<br/>---<br/>", unsafe_allow_html=True)
         st.subheader("📊 Phân Tích Chi Tiết Sản Phẩm, Danh Mục & Khung Giờ Bán Hàng")
         
+        # Chọn chế độ hiển thị chi tiết (Doanh thu hay Lợi nhuận)
+        view_mode = st.radio("Chỉ số hiển thị ở các biểu đồ dưới:", ["Doanh thu ($)", "Lợi nhuận ($)"], horizontal=True, key="dashboard_view_mode")
+        
+        # Thêm các cột tính toán chi phí & lợi nhuận
+        f_df['cost'] = f_df['sales'] * 0.6
+        f_df['profit'] = f_df['sales'] * 0.4
+        
+        val_col = 'sales' if "Doanh thu" in view_mode else 'profit'
+        mode_label = "Doanh thu" if "Doanh thu" in view_mode else "Lợi nhuận"
+        theme_color = '#38BDF8' if "Doanh thu" in view_mode else '#10B981'
+        
         col_d1, col_d2 = st.columns(2)
         
         with col_d1:
-            st.markdown("<h4 style='color: #F8FAFC;'>🏆 Top 10 Sản Phẩm Bán Chạy Nhất (Doanh Số)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='color: #F8FAFC;'>🏆 Top 10 Sản Phẩm Cao Nhất ({mode_label})</h4>", unsafe_allow_html=True)
             # Nhóm theo cả tên sản phẩm và phân nhóm sản phẩm thực tế
-            top_products = f_df.groupby(['product_name', 'sub_category'])['sales'].sum().reset_index()
-            top_10 = top_products.sort_values(by='sales', ascending=True).tail(10)
+            top_products = f_df.groupby(['product_name', 'sub_category'])[val_col].sum().reset_index()
+            top_10 = top_products.sort_values(by=val_col, ascending=True).tail(10)
             
             if not top_10.empty:
                 # Tạo nhãn kết hợp: [Sub-Category] Product Name
@@ -237,9 +250,9 @@ def render_realtime_section():
                 
                 fig_top, ax_top = plt.subplots(figsize=(7, 4.5), facecolor='#0F172A')
                 ax_top.set_facecolor('#0F172A')
-                bars = ax_top.barh(top_10['label'], top_10['sales'], color='#38BDF8', height=0.55)
+                bars = ax_top.barh(top_10['label'], top_10[val_col], color=theme_color, height=0.55)
                 ax_top.tick_params(colors='#94A3B8', labelsize=8)
-                ax_top.set_xlabel('Doanh thu ($)', color='#94A3B8', fontsize=8)
+                ax_top.set_xlabel(f'{mode_label} ($)', color='#94A3B8', fontsize=8)
                 ax_top.grid(True, linestyle='--', color='#1E293B', alpha=0.5, axis='x')
                 
                 for spine in ['top', 'right', 'left', 'bottom']:
@@ -252,30 +265,30 @@ def render_realtime_section():
                 ax_top.set_yticklabels(short_labels, color='#94A3B8')
                 st.pyplot(fig_top)
             else:
-                st.info("Không đủ dữ liệu hiển thị top sản phẩm.")
+                st.info(f"Không đủ dữ liệu hiển thị top sản phẩm theo {mode_label.lower()}.")
                 
         with col_d2:
-            st.markdown("<h4 style='color: #F8FAFC;'>🍩 Cơ Cấu Doanh Thu Theo Danh Mục Sản Phẩm</h4>", unsafe_allow_html=True)
-            cat_sales = f_df.groupby('category')['sales'].sum().reset_index()
+            st.markdown(f"<h4 style='color: #F8FAFC;'>🍩 Cơ Cấu {mode_label} Theo Danh Mục Sản Phẩm</h4>", unsafe_allow_html=True)
+            cat_sales = f_df.groupby('category')[val_col].sum().reset_index()
             
             if not cat_sales.empty:
                 fig_pie, ax_pie = plt.subplots(figsize=(8.0, 4.5), facecolor='#0F172A')
                 ax_pie.set_facecolor('#0F172A')
                 colors = ['#38BDF8', '#A78BFA', '#FBBF24', '#34D399', '#F43F5E']
                 wedges, texts = ax_pie.pie(
-                    cat_sales['sales'], 
+                    cat_sales[val_col], 
                     startangle=90,
                     colors=colors[:len(cat_sales)],
                     wedgeprops=dict(width=0.35, edgecolor='#0F172A', linewidth=2)
                 )
-                total_sales = cat_sales['sales'].sum()
-                ax_pie.text(0, 0.08, f"${total_sales:,.0f}", ha='center', va='center', color='#F8FAFC', fontsize=12, fontweight='bold')
-                ax_pie.text(0, -0.12, "Tổng doanh thu", ha='center', va='center', color='#94A3B8', fontsize=7.5)
+                total_val = cat_sales[val_col].sum()
+                ax_pie.text(0, 0.08, f"${total_val:,.0f}", ha='center', va='center', color='#F8FAFC', fontsize=12, fontweight='bold')
+                ax_pie.text(0, -0.12, f"Tổng {mode_label.lower()}", ha='center', va='center', color='#94A3B8', fontsize=7.5)
                 
                 legend_labels = []
                 for _, row in cat_sales.iterrows():
-                    pct = (row['sales'] / total_sales) * 100 if total_sales > 0 else 0
-                    legend_labels.append(f"{row['category']}: ${row['sales']:,.0f} ({pct:.1f}%)")
+                    pct = (row[val_col] / total_val) * 100 if total_val > 0 else 0
+                    legend_labels.append(f"{row['category']}: ${row[val_col]:,.0f} ({pct:.1f}%)")
                 
                 ax_pie.legend(
                     wedges, 
@@ -292,13 +305,13 @@ def render_realtime_section():
                 ax_pie.get_legend().get_title().set_fontsize(9.0)
                 st.pyplot(fig_pie)
             else:
-                st.info("Không đủ dữ liệu hiển thị cơ cấu danh mục.")
+                st.info(f"Không đủ dữ liệu hiển thị cơ cấu danh mục theo {mode_label.lower()}.")
         
         st.markdown("<br/>---<br/>", unsafe_allow_html=True)
-        st.markdown("<h4 style='color: #F8FAFC;'>📊 Doanh Thu Chi Tiết Theo Phân Nhóm Sản Phẩm (Sub-Category)</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color: #F8FAFC;'>📊 {mode_label} Chi Tiết Theo Phân Nhóm Sản Phẩm (Sub-Category)</h4>", unsafe_allow_html=True)
         
-        subcat_sales = f_df.groupby(['sub_category', 'category'])['sales'].sum().reset_index()
-        subcat_sales = subcat_sales.sort_values(by='sales', ascending=True)
+        subcat_sales = f_df.groupby(['sub_category', 'category'])[val_col].sum().reset_index()
+        subcat_sales = subcat_sales.sort_values(by=val_col, ascending=True)
         
         if not subcat_sales.empty:
             cat_colors = {
@@ -316,10 +329,10 @@ def render_realtime_section():
             
             fig_sub, ax_sub = plt.subplots(figsize=(14, max(4, len(subcat_sales) * 0.35)), facecolor='#0F172A')
             ax_sub.set_facecolor('#0F172A')
-            bars = ax_sub.barh(subcat_sales['sub_category'], subcat_sales['sales'], color=bar_colors, height=0.6)
+            bars = ax_sub.barh(subcat_sales['sub_category'], subcat_sales[val_col], color=bar_colors, height=0.6)
             
             ax_sub.tick_params(colors='#94A3B8', labelsize=9)
-            ax_sub.set_xlabel('Doanh thu ($)', color='#94A3B8', fontsize=10)
+            ax_sub.set_xlabel(f'{mode_label} ($)', color='#94A3B8', fontsize=10)
             ax_sub.grid(True, linestyle='--', color='#1E293B', alpha=0.5, axis='x')
             
             for spine in ['top', 'right', 'left', 'bottom']:
@@ -327,7 +340,7 @@ def render_realtime_section():
                 
             ax_sub.get_xaxis().set_major_formatter(plt.FuncFormatter(lambda x, loc: "{:,}$".format(int(x))))
             
-            max_val = subcat_sales['sales'].max() if not subcat_sales.empty else 0
+            max_val = subcat_sales[val_col].max() if not subcat_sales.empty else 0
             for bar in bars:
                 width = bar.get_width()
                 ax_sub.text(width + max_val * 0.01, bar.get_y() + bar.get_height()/2, 
@@ -340,7 +353,7 @@ def render_realtime_section():
             
             st.pyplot(fig_sub)
         else:
-            st.info("Không đủ dữ liệu hiển thị phân nhóm sản phẩm.")
+            st.info(f"Không đủ dữ liệu hiển thị phân nhóm sản phẩm theo {mode_label.lower()}.")
             
         st.markdown("<br/>---<br/>", unsafe_allow_html=True)
         st.markdown("<h4 style='color: #F8FAFC;'>📅 Biểu Đồ Nhiệt Mật Độ Đơn Hàng Theo Khung Giờ & Ngày Trong Tuần</h4>", unsafe_allow_html=True)

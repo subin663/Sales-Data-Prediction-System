@@ -151,24 +151,28 @@ else:
     for m_name in models_to_plot:
         model_df = df_forecast[df_forecast['model_name'] == m_name].sort_values('forecast_date')
         if not model_df.empty:
-            m_dates = model_df['forecast_date'].values
-            m_preds = model_df['predicted_revenue'].values
+            # Chỉ lấy các ngày dự báo lớn hơn ngày lịch sử cuối cùng (để tránh bị nối dây ngược/rối biểu đồ khi có đơn mô phỏng)
+            model_df = model_df[model_df['forecast_date'] > pd.to_datetime(hist_dates[-1])]
             
-            # Kết nối điểm lịch sử cuối cùng với điểm dự báo đầu tiên
-            conn_dates = np.concatenate([[hist_dates[-1]], m_dates])
-            conn_preds = np.concatenate([[hist_revenue[-1]], m_preds])
-            
-            # Vẽ đường nét đứt biểu diễn tương lai
-            ax3.plot(
-                conn_dates, 
-                conn_preds, 
-                color=colors_map.get(m_name, '#94A3B8'), 
-                linewidth=2.0, 
-                linestyle='--', 
-                marker=markers_map.get(m_name, 'o'), 
-                markersize=5, 
-                label=f'Dự báo {m_name}'
-            )
+            if not model_df.empty:
+                m_dates = model_df['forecast_date'].values
+                m_preds = model_df['predicted_revenue'].values
+                
+                # Kết nối điểm lịch sử cuối cùng với điểm dự báo đầu tiên
+                conn_dates = np.concatenate([[hist_dates[-1]], m_dates])
+                conn_preds = np.concatenate([[hist_revenue[-1]], m_preds])
+                
+                # Vẽ đường nét đứt biểu diễn tương lai
+                ax3.plot(
+                    conn_dates, 
+                    conn_preds, 
+                    color=colors_map.get(m_name, '#94A3B8'), 
+                    linewidth=2.0, 
+                    linestyle='--', 
+                    marker=markers_map.get(m_name, 'o'), 
+                    markersize=5, 
+                    label=f'Dự báo {m_name}'
+                )
             
     ax3.set_xlabel('Thời gian', color='#94A3B8', fontsize=10, labelpad=8)
     ax3.set_ylabel('Doanh thu ($)', color='#94A3B8', fontsize=10, labelpad=8)
